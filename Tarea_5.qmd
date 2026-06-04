@@ -1,0 +1,628 @@
+---
+title: "Tarea 5. Diferenciación e integración numérica."
+author: "Islas Pichardo Patricio"
+format: 
+  html:
+    grid: 
+      body-width: 1000px
+    toc: true
+    toc-location: left
+    code-fold: show
+    embed-resources: true
+editor: visual
+jupyter: python3
+---
+
+Importamos packages y funciones necesarias:
+
+```{python}
+#| code-fold: true
+
+import matplotlib.pyplot as plt
+import numpy as np
+import math
+
+import plotly.graph_objects as go
+from scipy.differentiate import derivative
+import numdifftools as nd
+from scipy import integrate
+import pandas as pd
+
+# Paquetes auxiliares para valores exactos
+from scipy import special, stats
+```
+
+# Ejercicio 1.
+
+Para cada una de las siguientes funciones:
+
+-   Realiza la respectiva gráfica en el intervalo dado.
+
+-   Compara las gráficas de las derivadas aproximadas de la función `derivative` de `Scipy`, con dos tamaños de paso utilizando la función `nd.Derivative` (con `order =2` y `order = 4`, con las opciones de `method`: `forward`, `backward`, `central`) y la derivada *exacta* en tal intervalo.
+
+-   Compara las gráficas de las segundas derivadas aproximadas con dos tamaños de paso utilizando la función `nd.Derivative` y la segunda derivada *exacta* en tal intervalo.
+
+-   Realiza las gráficas de los errores absolutos en cada caso.
+
+Definimos una función auxiliar que realiza todas las comparaciones solicitadas. Para cada función se usan **dos tamaños de paso** ($h_1$ y $h_2$), los tres **métodos** (`forward`, `central`, `backward`) y los dos **órdenes** de aproximación (`order = 2` y `order = 4`).
+
+```{python}
+#| code-fold: true
+
+def analiza_derivadas(f, fp, fpp, a, b, etiqueta, h1=0.1, h2=0.01, n_pts=200, eps=0.0):
+    """
+    f   : función
+    fp  : primera derivada exacta
+    fpp : segunda derivada exacta
+    [a,b]: intervalo
+    etiqueta: título a mostrar
+    h1, h2 : dos tamaños de paso para nd.Derivative
+    eps : pequeño desplazamiento del extremo izquierdo (para funciones con dominio
+          delicado en a, p. ej. sqrt(x) en x=0)
+    """
+    x = np.linspace(a + eps, b, n_pts)
+    metodos = ['forward', 'central', 'backward']
+    pasos   = [h1, h2]
+
+    # Gráfica de la función ----
+    plt.figure(figsize=(8, 4.5))
+    plt.plot(x, f(x), color='teal', lw=2)
+    plt.title(f'Función {etiqueta}')
+    plt.xlabel('x'); plt.ylabel('f(x)')
+    plt.grid(True, alpha=0.4)
+    plt.show()
+
+
+    df_scipy = derivative(f, x).df
+
+
+    fig, axes = plt.subplots(1, 3, figsize=(16, 4.5), sharey=True)
+    fig.suptitle(f'Primera derivada — {etiqueta}', fontsize=13)
+    for ax, met in zip(axes, metodos):
+        ax.plot(x, fp(x), 'k-', lw=3, label='Exacta', zorder=5)
+        ax.plot(x, df_scipy, color='magenta', ls='--', lw=1.3, label='scipy derivative')
+        for h, ls in zip(pasos, ['-', ':']):
+            for orden, col in zip([2, 4], ['tab:blue', 'tab:red']):
+                d = nd.Derivative(f, step=h, order=orden, method=met, n=1)(x)
+                ax.plot(x, d, ls, color=col, lw=1.4, alpha=0.85,
+                        label=f'nd order={orden}, h={h}')
+        ax.set_title(f"method = '{met}'")
+        ax.set_xlabel('x'); ax.grid(True, alpha=0.4)
+    axes[0].set_ylabel("f'(x)")
+    axes[1].legend(loc='best', fontsize=7, ncol=2)
+    plt.tight_layout()
+    plt.show()
+
+    fig, axes = plt.subplots(1, 3, figsize=(16, 4.5), sharey=True)
+    fig.suptitle(f'Error absoluto de la primera derivada — {etiqueta}', fontsize=13)
+    exact1 = fp(x)
+    for ax, met in zip(axes, metodos):
+        ax.semilogy(x, np.abs(df_scipy - exact1), color='magenta', ls='--',
+                    lw=1.3, label='scipy derivative')
+        for h, ls in zip(pasos, ['-', ':']):
+            for orden, col in zip([2, 4], ['tab:blue', 'tab:red']):
+                d = nd.Derivative(f, step=h, order=orden, method=met, n=1)(x)
+                ax.semilogy(x, np.abs(d - exact1), ls, color=col, lw=1.4, alpha=0.85,
+                            label=f'nd order={orden}, h={h}')
+        ax.set_title(f"method = '{met}'")
+        ax.set_xlabel('x'); ax.grid(True, which='both', alpha=0.3)
+    axes[0].set_ylabel('|error|')
+    axes[1].legend(loc='best', fontsize=7, ncol=2)
+    plt.tight_layout()
+    plt.show()
+
+    fig, axes = plt.subplots(1, 3, figsize=(16, 4.5), sharey=True)
+    fig.suptitle(f'Segunda derivada — {etiqueta}', fontsize=13)
+    for ax, met in zip(axes, metodos):
+        ax.plot(x, fpp(x), 'k-', lw=3, label='Exacta', zorder=5)
+        for h, ls in zip(pasos, ['-', ':']):
+            for orden, col in zip([2, 4], ['tab:blue', 'tab:red']):
+                d2 = nd.Derivative(f, step=h, order=orden, method=met, n=2)(x)
+                ax.plot(x, d2, ls, color=col, lw=1.4, alpha=0.85,
+                        label=f'nd order={orden}, h={h}')
+        ax.set_title(f"method = '{met}'")
+        ax.set_xlabel('x'); ax.grid(True, alpha=0.4)
+    axes[0].set_ylabel("f''(x)")
+    axes[1].legend(loc='best', fontsize=7, ncol=2)
+    plt.tight_layout()
+    plt.show()
+
+
+    fig, axes = plt.subplots(1, 3, figsize=(16, 4.5), sharey=True)
+    fig.suptitle(f'Error absoluto de la segunda derivada — {etiqueta}', fontsize=13)
+    exact2 = fpp(x)
+    for ax, met in zip(axes, metodos):
+        for h, ls in zip(pasos, ['-', ':']):
+            for orden, col in zip([2, 4], ['tab:blue', 'tab:red']):
+                d2 = nd.Derivative(f, step=h, order=orden, method=met, n=2)(x)
+                ax.semilogy(x, np.abs(d2 - exact2), ls, color=col, lw=1.4, alpha=0.85,
+                            label=f'nd order={orden}, h={h}')
+        ax.set_title(f"method = '{met}'")
+        ax.set_xlabel('x'); ax.grid(True, which='both', alpha=0.3)
+    axes[0].set_ylabel('|error|')
+    axes[1].legend(loc='best', fontsize=7, ncol=2)
+    plt.tight_layout()
+    plt.show()
+```
+
+## a) $f(x)=e^{2x}-\cos 2x$, $x\in [0,2]$
+
+Derivadas exactas: $$f'(x)=2e^{2x}+2\sin 2x, \qquad f''(x)=4e^{2x}+4\cos 2x.$$
+
+```{python}
+f_a   = lambda x: np.exp(2*x) - np.cos(2*x)
+fp_a  = lambda x: 2*np.exp(2*x) + 2*np.sin(2*x)
+fpp_a = lambda x: 4*np.exp(2*x) + 4*np.cos(2*x)
+
+analiza_derivadas(f_a, fp_a, fpp_a, 0, 2, r'$f(x)=e^{2x}-\cos 2x$')
+```
+
+## b) $f(x)=\log(x+2)-(x+1)^2$, $x\in [0,5]$
+
+Derivadas exactas (con $\log=\ln$): $$f'(x)=\frac{1}{x+2}-2(x+1), \qquad f''(x)=-\frac{1}{(x+2)^2}-2.$$
+
+```{python}
+f_b   = lambda x: np.log(x+2) - (x+1)**2
+fp_b  = lambda x: 1/(x+2) - 2*(x+1)
+fpp_b = lambda x: -1/(x+2)**2 - 2
+
+analiza_derivadas(f_b, fp_b, fpp_b, 0, 5, r'$f(x)=\log(x+2)-(x+1)^2$')
+```
+
+## c) $f(x)=\sqrt{x}\,\operatorname{sen}(x^2)$, $x\in [0,\pi]$
+
+Derivadas exactas: $$f'(x)=\frac{\operatorname{sen}(x^2)}{2\sqrt{x}}+2x^{3/2}\cos(x^2),$$ $$f''(x)=-\tfrac{1}{4}x^{-3/2}\operatorname{sen}(x^2)+4\sqrt{x}\,\cos(x^2)-4x^{5/2}\operatorname{sen}(x^2).$$
+
+> En $x=0$ la función tiene derivada infinita ($\sqrt{x}$ no es derivable en el origen), por lo que se desplaza ligeramente el extremo izquierdo (`eps`) para evitar valores indefinidos en las aproximaciones.
+
+```{python}
+#| warning: false
+
+f_c   = lambda x: np.sqrt(x) * np.sin(x**2)
+fp_c  = lambda x: np.sin(x**2)/(2*np.sqrt(x)) + 2*x**1.5*np.cos(x**2)
+fpp_c = lambda x: (-0.25*x**(-1.5)*np.sin(x**2)
+                   + 4*np.sqrt(x)*np.cos(x**2)
+                   - 4*x**2.5*np.sin(x**2))
+
+analiza_derivadas(f_c, fp_c, fpp_c, 0, np.pi,
+                  r'$f(x)=\sqrt{x}\,sen(x^2)$', eps=0.05)
+```
+
+## d) $f(x)=(\cos 3x)^2-e^{2x}$, $x\in [0,\pi/2]$
+
+Derivadas exactas (usando $\cos^2 3x=\tfrac{1+\cos 6x}{2}$): $$f'(x)=-3\operatorname{sen}(6x)-2e^{2x}, \qquad f''(x)=-18\cos(6x)-4e^{2x}.$$
+
+```{python}
+f_d   = lambda x: np.cos(3*x)**2 - np.exp(2*x)
+fp_d  = lambda x: -3*np.sin(6*x) - 2*np.exp(2*x)
+fpp_d = lambda x: -18*np.cos(6*x) - 4*np.exp(2*x)
+
+analiza_derivadas(f_d, fp_d, fpp_d, 0, np.pi/2,
+                  r'$f(x)=(\cos 3x)^2-e^{2x}$')
+```
+
+**Observaciones del Ejercicio 1.** En todos los casos `scipy.differentiate.derivative` (que usa pasos adaptativos y un esquema de alto orden) prácticamente coincide con la derivada exacta. Para `nd.Derivative` el error disminuye al usar `order = 4` frente a `order = 2` y al reducir el paso $h$; el método `central` es el más preciso, mientras que `forward` y `backward` muestran mayor error, sobre todo cerca de los extremos del intervalo.
+
+# Ejercicio 2
+
+Elige 3 indicadores económicos del INEGI (del archivo `TIE_Inegi_long.xlsx`), realiza la gráfica de la serie temporal y de su derivada. Brinda un análisis de la gráfica y de la evolución del indicador a lo largo del tiempo.
+
+```{python}
+#| code-fold: true
+#| warning: false
+
+# Lectura del archivo INEGI con indicadores económicos mensuales (1993-2025).
+# El archivo tiene una columna 'Fecha' y 42 columnas, cada una un indicador.
+inegi = pd.read_excel("TIE_Inegi_long.xlsx")
+inegi['Fecha'] = pd.to_datetime(inegi['Fecha'])
+inegi = inegi.sort_values('Fecha').reset_index(drop=True)
+
+print(f"Periodo: {inegi['Fecha'].min().date()} a {inegi['Fecha'].max().date()}")
+print(f"Total de observaciones: {len(inegi)}")
+print(f"\nIndicadores disponibles ({len(inegi.columns)-1}):")
+for c in inegi.columns[1:]:
+    print(f"  - {c}")
+```
+
+Para esto elegí 3 indicadores económicos:
+
+1.  Tipo_cambio_nominal
+2.  Tipo_cambio_real
+3.  Reservas_internacionales
+
+```{python}
+#| code-fold: true
+
+indicadores = ['Tipo_cambio_nominal', 'Tipo_cambio_real', 'Reservas_internacionales']
+colores = ['tab:blue', 'tab:darkblue', 'tab:black']
+
+fig, axes = plt.subplots(3, 2, figsize=(15, 12))
+t = inegi['Fecha']
+# Tiempo en años desde el inicio 
+t_num = (inegi['Fecha'] - inegi['Fecha'].min()).dt.days.values / 365.25
+
+for i, (ind, col) in enumerate(zip(indicadores, colores)):
+    y = inegi[ind].values.astype(float)
+
+    # Se calcula la derivada solo donde hay datos 
+    mask = ~np.isnan(y)
+    dydt = np.full_like(y, np.nan)
+    if mask.sum() > 2:
+        dydt[mask] = np.gradient(y[mask], t_num[mask])
+
+    # Serie temporal
+    axes[i, 0].plot(t, y, color=col, lw=1.5)
+    axes[i, 0].set_title(f'Serie temporal: {ind}')
+    axes[i, 0].set_xlabel('Fecha'); axes[i, 0].set_ylabel('Valor')
+    axes[i, 0].grid(True, alpha=0.4)
+
+    # Derivada 
+    axes[i, 1].plot(t, dydt, color='tab:red', lw=1.2)
+    axes[i, 1].axhline(0, color='k', lw=0.8)
+    axes[i, 1].set_title(f'Derivada (cambio por año): {ind}')
+    axes[i, 1].set_xlabel('Fecha'); axes[i, 1].set_ylabel('d(valor)/d(t)')
+    axes[i, 1].grid(True, alpha=0.4)
+
+plt.tight_layout()
+plt.show()
+```
+
+**Análisis de la evolución de los indicadores.**
+
+**1. Tipo de cambio nominal (peso/dólar).** La serie muestra el deterioro estructural del peso mexicano frente al dólar, pasando de aproximadamente 3 pesos por dólar en 1993 a más de 20 pesos en años recientes. La derivada permite identificar con claridad los **episodios de depreciación abrupta**: el pico de 1994-1995 corresponde al *Error de Diciembre* (crisis del Tequila), donde el peso se devaluó violentamente; un segundo pico en 2008-2009 refleja la crisis financiera global; y un tercer pico en 2020 corresponde al choque de la pandemia de COVID-19. Los tramos donde la derivada es cercana a cero representan periodos de relativa estabilidad cambiaria.
+
+**2. Tipo de cambio real.** La serie muestra la evolución del tipo de cambio real, que refleja el poder adquisitivo del peso mexicano frente a otros países. La derivada permite identificar cambios en la competitividad internacional de la economía mexicana.
+
+**3. Reservas internacionales.** La serie muestra la evolución de las reservas internacionales, que son un indicador clave de la estabilidad económica y la capacidad del país para hacer frente a shocks externos. La derivada permite identificar periodos de aumento o disminución en estas reservas.
+
+# Ejercicio 3
+
+Calcular el valor exacto y las aproximaciones numéricas de la siguiente integral:
+
+\begin{equation}
+\int_0^4 x^2e^{-x} dx    
+\end{equation}
+
+Como en el primer ejemplo del archivo `Ejemplos_10_Int_num.qmd`.
+
+```{python}
+# Valor EXACTO 
+xs = sp.symbols('x')
+exacta_sym = sp.integrate(xs**2 * sp.exp(-xs), (xs, 0, 4))
+valor_exacto = float(exacta_sym)
+print("Valor exacto (simbólico):", sp.nsimplify(exacta_sym), "=", exacta_sym, "≈", valor_exacto)
+```
+
+```{python}
+g = lambda x: x**2 * np.exp(-x)
+a, b = 0, 4
+
+# 1) Cuadratura adaptativa 
+val_quad, err_quad = integrate.quad(g, a, b)
+
+# Malla para las reglas compuestas
+n = 100
+x = np.linspace(a, b, n+1)
+y = g(x)
+
+# 2) Regla del trapecio
+val_trap = integrate.trapezoid(y, x)
+
+# 3) Regla de Simpson
+val_simp = integrate.simpson(y, x=x)
+
+# 4) Sumas de Riemann 
+dx = (b - a)/n
+x_izq  = a + dx*np.arange(n)
+x_der  = a + dx*np.arange(1, n+1)
+x_med  = a + dx*(np.arange(n) + 0.5)
+val_izq = np.sum(g(x_izq))*dx
+val_der = np.sum(g(x_der))*dx
+val_med = np.sum(g(x_med))*dx
+
+tabla = pd.DataFrame({
+    'Método': ['Exacto', 'quad (adaptativo)', 'Trapecio', 'Simpson',
+               'Riemann izquierda', 'Riemann derecha', 'Punto medio'],
+    'Valor': [valor_exacto, val_quad, val_trap, val_simp,
+              val_izq, val_der, val_med]
+})
+tabla['Error absoluto'] = np.abs(tabla['Valor'] - valor_exacto)
+tabla
+```
+
+El valor exacto es $\displaystyle\int_0^4 x^2e^{-x}\,dx = 2-26e^{-4}\approx `{python} round(valor_exacto,6)`$. Las reglas de **Simpson** y **quad** reproducen el valor exacto con error prácticamente nulo, el **punto medio** y el **trapecio** dan muy buena aproximación, mientras que las sumas de Riemann por la izquierda y por la derecha son las menos precisas.
+
+# Ejericicio 4
+
+Aproximar las siguientes integrales con la función `integrate.quad` (de SciPy) y con el método de Montecarlo, en cada caso hacer una gráfica de la función e indicar el área bajo la curva.
+
+```{python}
+#| code-fold: true
+
+def montecarlo(f, a, b, N=200_000, seed=0):
+    """Estimación Montecarlo de la integral de f en [a,b]."""
+    rng = np.random.default_rng(seed)
+    xs = rng.uniform(a, b, N)
+    fx = f(xs)
+    fx = fx[np.isfinite(fx)]          
+    return (b - a) * np.mean(fx)
+
+def grafica_area(f, a, b, titulo, a_plot=None, b_plot=None):
+    """Grafica f y sombrea el área bajo la curva en [a,b]."""
+    a_plot = a if a_plot is None else a_plot
+    b_plot = b if b_plot is None else b_plot
+    x = np.linspace(a_plot, b_plot, 400)
+    plt.figure(figsize=(7.5, 4))
+    plt.plot(x, f(x), color='navy', lw=2)
+    mask = (x >= a) & (x <= b)
+    plt.fill_between(x[mask], f(x[mask]), alpha=0.4, color='skyblue',
+                     label='Área bajo la curva')
+    plt.axhline(0, color='k', lw=0.8)
+    plt.title(titulo); plt.xlabel('x'); plt.ylabel('f(x)')
+    plt.grid(True, alpha=0.4); plt.legend()
+    plt.show()
+
+def resolver(f, a, b, titulo, exacto=None, a_plot=None, b_plot=None,
+             a_mc=None, b_mc=None):
+    """quad + Montecarlo + gráfica, devuelve un resumen."""
+    val_quad, _ = integrate.quad(f, a, b)
+    a_mc = a if a_mc is None else a_mc
+    b_mc = b if b_mc is None else b_mc
+    val_mc = montecarlo(f, a_mc, b_mc)
+    grafica_area(f, a_mc, b_mc, titulo, a_plot, b_plot)
+    fila = {'Integral': titulo, 'quad': val_quad, 'Montecarlo': val_mc}
+    if exacto is not None:
+        fila['Exacto'] = exacto
+        fila['|quad-exacto|'] = abs(val_quad - exacto)
+    print(f"quad = {val_quad:.8f}   |   Montecarlo = {val_mc:.8f}", end='')
+    if exacto is not None:
+        print(f"   |   exacto = {exacto:.8f}")
+    else:
+        print()
+    return fila
+```
+
+## a) $\int_0^1 e^{-x^2}\,dx$
+
+```{python}
+fa = lambda x: np.exp(-x**2)
+exacto_a = np.sqrt(np.pi)/2 * special.erf(1)
+resolver(fa, 0, 1, r'$f(x)=e^{-x^2}$ en $[0,1]$', exacto=exacto_a);
+```
+
+## b) $\int_0^\pi \operatorname{sen}(x^2)\,dx$
+
+```{python}
+fb = lambda x: np.sin(x**2)
+resolver(fb, 0, np.pi, r'$f(x)=sen(x^2)$ en $[0,\pi]$');
+```
+
+## c) $\int_\pi^{3\pi} \frac{\operatorname{sen}(x)}{x}\,dx$
+
+```{python}
+fc = lambda x: np.sin(x)/x
+# Exacto vía la integral seno: Si(3π) - Si(π)
+si_3pi, _ = special.sici(3*np.pi)
+si_pi,  _ = special.sici(np.pi)
+exacto_c = si_3pi - si_pi
+resolver(fc, np.pi, 3*np.pi, r'$f(x)=\dfrac{sen(x)}{x}$ en $[\pi,3\pi]$', exacto=exacto_c);
+```
+
+## d) $\int_0^\infty e^{-x^2}\cos(x)\,dx$
+
+Integral impropia. `quad` admite directamente el límite infinito; para Montecarlo se **trunca** el dominio en un valor grande donde el integrando es despreciable.
+
+```{python}
+fd = lambda x: np.exp(-x**2)*np.cos(x)
+exacto_d = np.sqrt(np.pi)/2 * np.exp(-1/4)
+# quad con límite infinito
+vq, _ = integrate.quad(fd, 0, np.inf)
+vmc = montecarlo(fd, 0, 10)          # truncado en x=10
+grafica_area(fd, 0, 10, r'$f(x)=e^{-x^2}\cos(x)$ en $[0,\infty)$ (truncado)')
+print(f"quad = {vq:.8f}  |  Montecarlo (trunc. en 10) = {vmc:.8f}  |  exacto = {exacto_d:.8f}")
+```
+
+## e) $\int_0^1 x^x\,dx$
+
+```{python}
+fe = lambda x: np.power(x, x)
+# "Sophomore's dream":  ∫_0^1 x^x dx = Σ (-1)^(n+1) n^(-n)
+exacto_e = sum((-1)**(n+1) * n**(-n) for n in range(1, 30))
+resolver(fe, 0, 1, r'$f(x)=x^x$ en $[0,1]$', exacto=exacto_e);
+```
+
+## f) $\int_1^5 e^{-x^2}x^3\,dx$
+
+```{python}
+ff = lambda x: np.exp(-x**2)*x**3
+resolver(ff, 1, 5, r'$f(x)=e^{-x^2}x^3$ en $[1,5]$');
+```
+
+## g) $\int_0^\infty \frac{x}{e^x-1}\,dx$
+
+Integral impropia cuyo valor exacto es $\dfrac{\pi^2}{6}$. En $x=0$ el integrando tiene límite $1$; se define con cuidado para evitar la indeterminación $0/0$.
+
+```{python}
+def fg(x):
+    x = np.asarray(x, dtype=float)
+    out = np.where(x > 1e-12, x/np.expm1(x), 1.0)  # expm1(x)=e^x-1 estable
+    return out
+
+exacto_g = np.pi**2/6
+vq, _ = integrate.quad(fg, 0, np.inf)
+vmc = montecarlo(fg, 1e-12, 50)       # truncado en x=50
+grafica_area(fg, 1e-3, 50, r'$f(x)=\dfrac{x}{e^x-1}$ en $[0,\infty)$ (truncado)')
+print(f"quad = {vq:.8f}  |  Montecarlo (trunc. en 50) = {vmc:.8f}  |  exacto = {exacto_g:.8f}")
+```
+
+## h) $\int_0^1 \frac{1}{\sqrt{x^4+1}}\,dx$
+
+```{python}
+fh = lambda x: 1/np.sqrt(x**4 + 1)
+resolver(fh, 0, 1, r'$f(x)=\dfrac{1}{\sqrt{x^4+1}}$ en $[0,1]$');
+```
+
+**Observaciones del Ejercicio 4.** La cuadratura adaptativa `quad` coincide con los valores exactos (cuando existe forma cerrada) hasta varios decimales. El método de Montecarlo es mucho menos preciso: su error decrece como $1/\sqrt{N}$, por lo que con $N=2\times 10^5$ muestras se obtienen 2–3 cifras significativas. En las integrales impropias (d y g) se trunca el dominio para Montecarlo en un punto donde el integrando ya es despreciable.
+
+# Ejercicio 5
+
+Aproximar las siguientes integrales dobles y triples, llevar a cabo la gráfica cuando se indique y comparar con el valor *exacto* de la integral.
+
+## a) $\int_{-1}^{1}\int_1^2 (3y^2-x^2+5)\, dx\, dy$ (con gráfica)
+
+```{python}
+# integrate.dblquad(func, a, b, gfun, hfun) integra func(y, x) con x en [a,b], y en [g(x),h(x)]
+F_a = lambda y, x: 3*y**2 - x**2 + 5
+# Variable externa: y en [-1,1]; interna: x en [1,2]
+val_a, _ = integrate.dblquad(lambda x, y: F_a(y, x), -1, 1, 1, 2)
+
+# Valor exacto con sympy
+xx, yy = sp.symbols('x y')
+exacto_a5 = sp.integrate(sp.integrate(3*yy**2 - xx**2 + 5, (xx, 1, 2)), (yy, -1, 1))
+print(f"dblquad = {val_a:.8f}   |   exacto = {float(exacto_a5):.8f}  ({exacto_a5})")
+
+# Gráfica de la superficie sobre la región [1,2] x [-1,1]
+xg = np.linspace(1, 2, 60)
+yg = np.linspace(-1, 1, 60)
+X, Y = np.meshgrid(xg, yg)
+Z = 3*Y**2 - X**2 + 5
+fig = plt.figure(figsize=(8, 5))
+ax = fig.add_subplot(111, projection='3d')
+ax.plot_surface(X, Y, Z, cmap='viridis', alpha=0.9)
+ax.set_xlabel('x'); ax.set_ylabel('y'); ax.set_zlabel('f(x,y)')
+ax.set_title(r'$f(x,y)=3y^2-x^2+5$ sobre $[1,2]\times[-1,1]$')
+plt.show()
+```
+
+## b) $\int_{0}^{6}\int_1^5 \sqrt{x+4y}\, dx\, dy$
+
+```{python}
+F_b = lambda x, y: np.sqrt(x + 4*y)
+# y externa en [0,6]; x interna en [1,5]
+val_b, _ = integrate.dblquad(F_b, 0, 6, 1, 5)
+exacto_b5 = sp.integrate(sp.integrate(sp.sqrt(xx + 4*yy), (xx, 1, 5)), (yy, 0, 6))
+print(f"dblquad = {val_b:.8f}   |   exacto = {float(exacto_b5):.8f}")
+```
+
+## c) $\int_{1}^{e}\int_0^{\log(x)} x^3 \, dy\, dx$
+
+La variable interna ($y$) va de $0$ a $\log(x)$ y la externa ($x$) de $1$ a $e$.
+
+```{python}
+# x externa en [1,e]; y interna en [0, log(x)]
+F_c = lambda y, x: x**3
+val_c, _ = integrate.dblquad(F_c, 1, np.e, lambda x: 0, lambda x: np.log(x))
+exacto_c5 = sp.integrate(sp.integrate(xx**3, (yy, 0, sp.log(xx))), (xx, 1, sp.E))
+print(f"dblquad = {val_c:.8f}   |   exacto = {float(exacto_c5):.8f}  ({sp.nsimplify(exacto_c5)})")
+```
+
+## d) $\iint_D 30y e^x\, dx\, dy$, con $D$ la región mostrada
+
+La región $D$ está acotada por las rectas $y=\dfrac{x}{4}$ y $y=x$ para $x\in[0,4]$ (rectas que pasan por el origen hacia $(4,1)$ y $(4,4)$).
+
+```{python}
+#| code-fold: true
+#| fig-align: 'center'
+
+x_val = np.array([0, 4])
+y_val1 = np.array([0, 1])
+y_val2 = np.array([0, 4])
+
+plt.figure(figsize=(8, 6))
+plt.plot(x_val, y_val1, label=r'$y=x/4$')
+plt.plot(x_val, y_val2, label=r'$y=x$')
+plt.fill_between(x_val, y1=y_val1, y2=y_val2, color="firebrick", alpha=0.5,
+                 label='Región D')
+plt.legend(); plt.xlabel('x'); plt.ylabel('y')
+plt.title('Región de integración D')
+plt.grid()
+plt.show()
+```
+
+```{python}
+# x externa en [0,4]; y interna en [x/4, x]
+F_d = lambda y, x: 30*y*np.exp(x)
+val_d, _ = integrate.dblquad(F_d, 0, 4, lambda x: x/4, lambda x: x)
+exacto_d5 = sp.integrate(sp.integrate(30*yy*sp.exp(xx), (yy, xx/4, xx)), (xx, 0, 4))
+print(f"dblquad = {val_d:.8f}   |   exacto = {float(exacto_d5):.8f}")
+```
+
+## e) $\iiint_B z e^{x+y}\, dx\, dy\, dz$, $B=[0,1]^3$
+
+```{python}
+# tplquad(func, a, b, gfun, hfun, qfun, rfun): func(z, y, x), x en [a,b],
+# y en [g(x),h(x)], z en [q(x,y), r(x,y)]
+F_e = lambda z, y, x: z*np.exp(x + y)
+val_e, _ = integrate.tplquad(F_e, 0, 1, 0, 1, 0, 1)
+zz = sp.symbols('z')
+exacto_e5 = sp.integrate(sp.integrate(sp.integrate(zz*sp.exp(xx+yy),
+            (zz, 0, 1)), (yy, 0, 1)), (xx, 0, 1))
+print(f"tplquad = {val_e:.8f}   |   exacto = {float(exacto_e5):.8f}  ({sp.nsimplify(exacto_e5)})")
+```
+
+## f) $\int_0^1 \int_0^x \int_0^y (y+xz)\, dz\, dy\, dx$
+
+```{python}
+# x en [0,1]; y en [0,x]; z en [0,y]
+F_f = lambda z, y, x: y + x*z
+val_f, _ = integrate.tplquad(F_f, 0, 1, lambda x: 0, lambda x: x,
+                             lambda x, y: 0, lambda x, y: y)
+exacto_f5 = sp.integrate(sp.integrate(sp.integrate(yy + xx*zz,
+            (zz, 0, yy)), (yy, 0, xx)), (xx, 0, 1))
+print(f"tplquad = {val_f:.8f}   |   exacto = {float(exacto_f5):.8f}  ({sp.nsimplify(exacto_f5)})")
+```
+
+**Observaciones del Ejercicio 5.** En todos los casos las rutinas `dblquad` y `tplquad` de SciPy reproducen el valor exacto (calculado simbólicamente con `sympy`) hasta la precisión de la máquina, confirmando la validez de las aproximaciones numéricas.
+
+# Ejercicio 6
+
+De `scipy.stats` elige 5 distribuciones continuas diferentes de probabilidad continua, realiza la gráfica y encuentra la probabilidad que la variable aleatoria tome un valor en un intervalo dado. Compara el resultado con el método `cdf`.
+
+Elegimos las distribuciones **Normal**, **Exponencial**, **Gamma**, **Beta** y **Log-normal**. Para cada una se grafica la densidad (pdf), se sombrea el intervalo de interés $[a,b]$ y se calcula $P(a\le X\le b)$ de dos formas: integrando la densidad con `integrate.quad` y mediante la diferencia de la función de distribución acumulada, $F(b)-F(a)$ (método `cdf`).
+
+```{python}
+#| code-fold: true
+
+# (nombre, objeto de distribución congelado, intervalo [a,b], rango de graficación)
+distribuciones = [
+    ("Normal(0,1)",       stats.norm(loc=0, scale=1),        (-1, 1),   (-4, 4)),
+    ("Exponencial(λ=1)",  stats.expon(scale=1),              (0.5, 2),  (0, 6)),
+    ("Gamma(k=2, θ=2)",   stats.gamma(a=2, scale=2),         (1, 5),    (0, 15)),
+    ("Beta(2,5)",         stats.beta(a=2, b=5),              (0.2, 0.5),(0, 1)),
+    ("Log-normal(σ=0.5)", stats.lognorm(s=0.5),              (1, 3),    (0, 6)),
+]
+
+filas = []
+fig, axes = plt.subplots(2, 3, figsize=(16, 9))
+axes = axes.ravel()
+
+for ax, (nombre, dist, (a, b), (xlo, xhi)) in zip(axes, distribuciones):
+    x = np.linspace(xlo, xhi, 400)
+    ax.plot(x, dist.pdf(x), color='darkblue', lw=2)
+    mask = (x >= a) & (x <= b)
+    ax.fill_between(x[mask], dist.pdf(x[mask]), alpha=0.4, color='orange')
+    ax.set_title(nombre); ax.set_xlabel('x'); ax.set_ylabel('f(x)')
+    ax.grid(True, alpha=0.4)
+
+    # P(a<=X<=b) por integración de la densidad
+    p_quad, _ = integrate.quad(dist.pdf, a, b)
+    # P(a<=X<=b) con la cdf
+    p_cdf = dist.cdf(b) - dist.cdf(a)
+
+    ax.text(0.02, 0.95, f"P({a}≤X≤{b})\nquad = {p_quad:.5f}\ncdf  = {p_cdf:.5f}",
+            transform=ax.transAxes, va='top', fontsize=9,
+            bbox=dict(boxstyle='round', fc='whitesmoke'))
+
+    filas.append({'Distribución': nombre, 'Intervalo': f'[{a}, {b}]',
+                  'P (quad)': p_quad, 'P (cdf)': p_cdf,
+                  'Diferencia': abs(p_quad - p_cdf)})
+
+# Se oculta el sexto eje vacío
+axes[-1].axis('off')
+plt.tight_layout()
+plt.show()
+
+pd.DataFrame(filas)
+```
+
+**Observaciones del Ejercicio 6.** Para las cinco distribuciones continuas la probabilidad calculada integrando numéricamente la densidad con `quad` coincide (hasta la precisión numérica) con la obtenida mediante la función de distribución acumulada `cdf`, ya que por definición $P(a\le X\le b)=\int_a^b f(x)\,dx = F(b)-F(a)$. La columna *Diferencia* confirma que el error entre ambos métodos es prácticamente cero.
