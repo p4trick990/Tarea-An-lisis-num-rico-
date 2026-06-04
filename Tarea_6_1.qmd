@@ -1,0 +1,953 @@
+---
+title: "Tarea 6. Ecuaciones diferenciales ordinarias."
+author: "Islas Pichardo Patricio"
+lang: es
+format: 
+  html:
+    grid:
+      body-width: 1200px
+    toc: true
+    toc-location: left
+    code-fold: show
+    embed-resources: true
+---
+
+Packages requeridos:
+
+```{python}
+#| code-fold: true
+
+import numpy as np
+import matplotlib.pyplot as plt
+import plotly.graph_objects as go
+from scipy import integrate
+```
+
+```{python}
+#| code-fold: true
+
+PALETA = ['tab:blue', 'tab:red', 'tab:green', 'tab:purple']
+
+def resolver_y_graficar(f, t0, tf, s0, etiquetas, titulo='',
+                        n_pts=1000, args=None, ylabel=None, metodo='RK45'):
+    """
+    Resuelve un sistema de EDOs de primer orden con solve_ivp y grafica las
+    componentes en una sola figura, todas vs t.
+    """
+    t_vals = np.linspace(t0, tf, n_pts)
+    kw = dict(t_eval=t_vals, method=metodo, rtol=1e-8, atol=1e-10)
+    if args is not None:
+        kw['args'] = args
+    sol = integrate.solve_ivp(f, [t0, tf], s0, **kw)
+
+    plt.figure(figsize=(9, 5))
+    for i, lab in enumerate(etiquetas):
+        plt.plot(sol.t, sol.y[i], color=PALETA[i % len(PALETA)], lw=2, label=lab)
+    plt.xlabel('t')
+    plt.ylabel(ylabel if ylabel else '/'.join(etiquetas))
+    if titulo:
+        plt.title(titulo)
+    plt.legend()
+    plt.grid(True, alpha=0.4)
+    plt.show()
+    return sol
+
+
+def resolver_funciones_y_trayectoria(f, t0, tf, s0, etiquetas, titulo='',
+                                     n_pts=2000, args=None, metodo='RK45'):
+    """
+    Igual que la anterior pero, además de la gráfica de las componentes vs t,
+    dibuja la trayectoria (componente 0 vs componente 1) en un segundo eje.
+    """
+    t_vals = np.linspace(t0, tf, n_pts)
+    kw = dict(t_eval=t_vals, method=metodo, rtol=1e-8, atol=1e-10)
+    if args is not None:
+        kw['args'] = args
+    sol = integrate.solve_ivp(f, [t0, tf], s0, **kw)
+
+    fig, axes = plt.subplots(1, 2, figsize=(15, 5))
+    for i, lab in enumerate(etiquetas):
+        axes[0].plot(sol.t, sol.y[i], color=PALETA[i % len(PALETA)], lw=2, label=lab)
+    axes[0].set_xlabel('t'); axes[0].set_ylabel('/'.join(etiquetas))
+    axes[0].legend(); axes[0].grid(True, alpha=0.4)
+    axes[0].set_title(f'Funciones {titulo}')
+
+    axes[1].plot(sol.y[0], sol.y[1], color='navy', lw=1.5)
+    axes[1].plot(s0[0], s0[1], 'o', color='firebrick', ms=8, label='Inicio')
+    axes[1].set_xlabel(etiquetas[0]); axes[1].set_ylabel(etiquetas[1])
+    axes[1].legend(); axes[1].grid(True, alpha=0.4)
+    axes[1].set_title(f'Trayectoria {titulo}')
+
+    plt.tight_layout()
+    plt.show()
+    return sol
+```
+
+# Ejercicio 1
+
+La Ley de Enfriamiento de Newton establece que la tasa de enfriamiento de un objeto es proporcional a la diferencia de temperatura entre el objeto y su entorno. Supongamos que $t$ es el tiempo, $T$ es la temperatura del objeto, y $T_s$ es la temperatura del entorno. La siguiente ecuación diferencial describe la Ley de Newton:
+\begin{equation}
+\frac{dT}{dt} = k(T - T_s),
+\end{equation}
+
+donde $k$ es una constante.
+
+Consideramos una taza de café a 95 °C en una habitación de 18 °C. Se sabe que el café se enfría a una razón de 2 °C/min cuando su temperatura es de 70 °C. Calcula el valor de la constante $k$ y brinda una gráfica de la solución de la ecuación diferencial.
+
+**Cálculo de la constante.** Cuando $T=70\,°\!C$ se tiene $\dfrac{dT}{dt}=-2\,°\!C/\text{min}$
+(se enfría, de ahí el signo negativo). Sustituyendo en la ecuación:
+$$-2 = k\,(70 - 18) = 52k \;\Rightarrow\; k = -\dfrac{2}{52} = -\dfrac{1}{26}\approx -0.03846.$$
+
+**Solución analítica:** $T(t) = T_s + (T_0 - T_s)\,e^{kt} = 18 + 77\,e^{-t/26}$.
+
+```{python}
+T_s = 18
+T_0 = 95
+k = -2/52
+print(f"k = {k:.6f}  (= -1/26)")
+
+# Sistema (de primer orden, una sola ecuación)
+def f_newton(t, T, k, Ts):
+    return [k*(T[0] - Ts)]
+
+t0, tf = 0, 120  # 2 horas
+sol = integrate.solve_ivp(f_newton, [t0, tf], [T_0], args=(k, T_s),
+                          t_eval=np.linspace(t0, tf, 400), rtol=1e-8, atol=1e-10)
+
+# Solución analítica para comparar
+t = sol.t
+T_exacta = T_s + (T_0 - T_s)*np.exp(k*t)
+
+plt.figure(figsize=(9, 5))
+plt.plot(t, sol.y[0], color='tab:blue', lw=2.5, label='Solución numérica')
+plt.plot(t, T_exacta, '--', color='tab:red', lw=1.5, label='Solución analítica')
+plt.axhline(T_s, color='gray', ls=':', lw=1, label=f'$T_s = {T_s}\\,°C$')
+plt.xlabel('t (min)'); plt.ylabel('T (°C)')
+plt.title('Ley de enfriamiento de Newton: taza de café')
+plt.legend(); plt.grid(True, alpha=0.4)
+plt.show()
+```
+
+La temperatura del café decae exponencialmente desde 95 °C hacia la temperatura
+ambiente de 18 °C. El tiempo característico es $\tau = 1/|k| = 26$ minutos.
+
+# Ejercicio 2
+
+Brinda una aproximación de la solución del siguiente problema con valor inicial.
+\begin{equation}
+y' = t -ty, \qquad y(1)=0.
+\end{equation}
+
+Como $y'=t(1-y)$ es separable, $\frac{dy}{1-y}=t\,dt$, integrando y aplicando la
+condición inicial obtenemos la **solución analítica**
+$$y(t)=1-e^{-(t^{2}-1)/2}.$$
+
+```{python}
+def f_pvi(t, y):
+    return [t - t*y[0]]
+
+t0, tf = 1, 4
+sol = integrate.solve_ivp(f_pvi, [t0, tf], [0], t_eval=np.linspace(t0, tf, 300),
+                          rtol=1e-9, atol=1e-11)
+t = sol.t
+y_exact = 1 - np.exp(-(t**2 - 1)/2)
+
+plt.figure(figsize=(9, 5))
+plt.plot(t, sol.y[0], color='tab:blue', lw=2.5, label='Numérica (solve_ivp)')
+plt.plot(t, y_exact, '--', color='tab:red', lw=1.5, label=r'Analítica $1-e^{-(t^2-1)/2}$')
+plt.xlabel('t'); plt.ylabel('y(t)')
+plt.title(r"PVI: $y' = t - ty,\;\; y(1)=0$")
+plt.legend(); plt.grid(True, alpha=0.4)
+plt.show()
+
+print(f"Error máximo entre numérica y analítica: {np.max(np.abs(sol.y[0] - y_exact)):.2e}")
+```
+
+# Ejercicio 3
+
+Para la siguiente ecuación diferencial ordinaria de segundo orden con valores iniciales
+\begin{equation}
+u''-3u'-1.5 u= 8\,sen(3t), \qquad u(1)=-0.5, u'(1)=1
+\end{equation}
+
+Escribe el respectivo sistema de ecuaciones diferenciales de primer orden considerando que $v=u'(t)$ (velocidad) y posteriormente brinda la solución del sistema por medio de las funciones $u(t)$ y $v(t)$
+
+
+Esta ecuación diferencial ordinaria de segundo orden se puede reescribir como el siguiente sistema de primer orden:
+\begin{eqnarray}
+u' & = & v \\
+v' &=& 3v + 1.5u + 8\sin(3t)
+\end{eqnarray}
+
+con los valores iniciales $u(1)=-0.5$ y $v(1)=1$.
+
+A continuación se muestra la aproximación de la solución del sistema de ecuaciones diferenciales ordinarias de primer orden y las gráficas de las funciones $u(t)$ y $v(t)$. Notar que $v(t)$ es la derivada de $u(t)$ y esta última es la función que resuelve la ecuación diferencial ordinaria de segundo orden dada en el enunciado.
+
+```{python}
+#| code-fold: true
+#| fig-align: "center"
+
+# Función que define el sistema de ecuaciones diferenciales ordinarias de primer orden
+def f(t, U):
+  u, v = U
+  return[v, 8*np.sin(3*t)+3*v+1.5*u]
+
+
+t0 = 1
+tf = 3
+s0 = [-0.5, 1]
+t_values = np.linspace(t0, tf, 200)
+
+
+edo_sol = integrate.solve_ivp(f, [t0, tf], s0, t_eval = t_values)
+
+
+plt.figure(figsize=(9, 5))
+plt.plot(edo_sol.t, edo_sol.y[0], color='tab:blue', lw=2, label = 'u(t)')
+plt.plot(edo_sol.t, edo_sol.y[1], color='tab:red',  lw=2, label = 'v(t)')
+plt.xlabel('t')
+plt.ylabel('u/v')
+plt.legend()
+plt.grid(True, alpha=0.4)
+plt.show()
+```
+
+---
+
+<br>
+
+Para cada una de las ecuaciones diferenciales ordinarias de segundo y tercer orden con valores iniciales de los ejercicios 4 al 18, encuentra el respectivo sistema de primer orden y aproxima la solución, brinda gráficas de cada una de las funciones que resulten del sistema.
+
+# Ejercicio 4
+
+**Oscilador armónico simple**
+
+\begin{equation}
+y'' + 4y = 0,\quad y(0) = 1,\ y'(0) = 0
+\end{equation}
+
+Con $v=y'$ se obtiene el sistema
+$$y'=v,\qquad v'=-4y.$$
+
+```{python}
+def f4(t, U):
+    y, v = U
+    return [v, -4*y]
+
+resolver_y_graficar(f4, 0, 10, [1, 0], ['y(t)', "y'(t)"],
+                    titulo='Oscilador armónico simple');
+```
+
+La solución analítica es $y(t)=\cos(2t)$: oscilación pura, amplitud constante.
+
+# Ejercicio 5
+
+**Oscilador amortiguado**
+
+\begin{equation}
+y'' + 0.5y' + 4y = 0,\quad y(0) = 2,\ y'(0) = 0
+\end{equation}
+
+Con $v=y'$:
+$$y'=v,\qquad v'=-0.5\,v-4y.$$
+
+```{python}
+def f5(t, U):
+    y, v = U
+    return [v, -0.5*v - 4*y]
+
+resolver_y_graficar(f5, 0, 20, [2, 0], ['y(t)', "y'(t)"],
+                    titulo='Oscilador amortiguado');
+```
+
+La amplitud decae exponencialmente debido al término disipativo $0.5\,y'$.
+
+# Ejercicio 6
+
+**Oscilador forzado**
+
+\begin{equation}
+y'' + 2y' + y = \cos(t),\quad y(0) = 0,\ y'(0) = 1
+\end{equation}
+
+$$y'=v,\qquad v'=\cos(t)-2v-y.$$
+
+```{python}
+def f6(t, U):
+    y, v = U
+    return [v, np.cos(t) - 2*v - y]
+
+resolver_y_graficar(f6, 0, 20, [0, 1], ['y(t)', "y'(t)"],
+                    titulo='Oscilador forzado');
+```
+
+El sistema es críticamente amortiguado ($\zeta=1$); el transitorio se extingue
+rápidamente y la solución tiende a una oscilación estacionaria con la frecuencia del
+forzante.
+
+# Ejercicio 7
+
+**Ecuación no lineal de segundo orden**
+
+\begin{equation}
+y'' = -y^3 + \cos(t),\quad y(0) = 0,\ y'(0) = 0
+\end{equation}
+
+$$y'=v,\qquad v'=-y^{3}+\cos(t).$$
+
+```{python}
+def f7(t, U):
+    y, v = U
+    return [v, -y**3 + np.cos(t)]
+
+resolver_y_graficar(f7, 0, 30, [0, 0], ['y(t)', "y'(t)"],
+                    titulo='No lineal de segundo orden');
+```
+
+# Ejercicio 8
+
+**Amortiguamiento cuadrático**
+
+\begin{equation}
+y'' + y'^2 + y = 0,\quad y(0) = 1,\ y'(0) = -1
+\end{equation}
+
+$$y'=v,\qquad v'=-v^{2}-y.$$
+
+```{python}
+def f8(t, U):
+    y, v = U
+    return [v, -v**2 - y]
+
+resolver_y_graficar(f8, 0, 10, [1, -1], ['y(t)', "y'(t)"],
+                    titulo='Amortiguamiento cuadrático');
+```
+
+# Ejercicio 9
+
+**Péndulo simple (no lineal)**
+
+\begin{equation}
+\theta'' + \sin(\theta) = 0,\quad \theta(0) = \frac{\pi}{4},\ \theta'(0) = 0
+\end{equation}
+
+Con $\omega=\theta'$:
+$$\theta'=\omega,\qquad \omega'=-\sin(\theta).$$
+
+```{python}
+def f9(t, U):
+    th, w = U
+    return [w, -np.sin(th)]
+
+resolver_y_graficar(f9, 0, 20, [np.pi/4, 0], [r'$\theta(t)$', r"$\theta'(t)$"],
+                    titulo='Péndulo simple (no lineal)');
+```
+
+Sin disipación, el péndulo oscila indefinidamente; el periodo es ligeramente mayor que
+$2\pi$ (el del oscilador linealizado) debido a la no linealidad de $\sin(\theta)$.
+
+# Ejercicio 10
+
+**Circuito RLC**
+
+\begin{equation}
+LQ'' + RQ' + \frac{1}{C}Q = V(t),\quad Q(0) = 0,\ Q'(0) = 0,\quad V(t) = \sin(t)
+\end{equation}
+
+Considera $L = 0.5$, $R = 2$ y $C = 5$ para este ejercicio.
+
+Considerando la derivada de la carga $Q$ como la corriente $I$, es decir, $I = Q'$, podemos reescribir la ecuación diferencial de segundo orden como el siguiente sistema de primer orden:
+\begin{eqnarray}
+Q' & = & I \\
+I' &=& \frac{1}{L}\left(\sin(t) - RI - \frac{1}{C}Q\right)
+\end{eqnarray}
+
+con las condiciones iniciales $Q(0) = 0$ y $I(0) = 0$. A continuación se muestra la aproximación de la solución del sistema de ecuaciones diferenciales ordinarias de primer orden y las gráficas de las funciones $Q(t)$ y $I(t)$. Notar que $I(t)$ es la derivada de $Q(t)$ y esta última es la función que resuelve la ecuación diferencial ordinaria de segundo orden dada en el enunciado.
+
+```{python}
+#| code-fold: true
+#| fig-align: "center"
+
+def f(t, Q, L, R, C):
+  q, i = Q
+  return[i, (1/L)*(np.sin(t)-R*i+q/C)]
+
+L =0.5
+R = 2
+C= 5
+
+t0 = 0
+tf = 20
+s0 = [0, 0]
+t_values = np.linspace(t0, tf, 1000)
+
+edo_sol = integrate.solve_ivp(f, [t0, tf], s0, t_eval = t_values, args = (L, R, C))
+
+plt.figure(figsize=(9, 5))
+plt.plot(edo_sol.t, edo_sol.y[0], color='tab:blue', lw=2, label = 'Q(t)')
+plt.plot(edo_sol.t, edo_sol.y[1], color='tab:red',  lw=2, label = 'I(t)')
+plt.xlabel('t')
+plt.ylabel('Q/I')
+plt.legend()
+plt.grid(True, alpha=0.4)
+plt.show()
+```
+
+
+# Ejercicio 11
+
+**Ecuación de Bessel aproximada**
+
+\begin{equation}
+x^2y'' + xy' + (x^2 - 1)y = 0,\quad y(1) = 0.5,\ y'(1) = -0.1
+\end{equation}
+
+Despejando $y''$: $y''=-\dfrac{y'}{x}-\left(1-\dfrac{1}{x^{2}}\right)y$. Con $v=y'$:
+$$y'=v,\qquad v'=-\frac{v}{x}-\Bigl(1-\frac{1}{x^{2}}\Bigr)y.$$
+
+```{python}
+def f11(x, U):
+    y, v = U
+    return [v, -v/x - (1 - 1/x**2)*y]
+
+resolver_y_graficar(f11, 1, 20, [0.5, -0.1], ['y(x)', "y'(x)"],
+                    titulo='Ecuación tipo Bessel');
+```
+
+La solución es una combinación lineal de las funciones de Bessel de primera y segunda
+clase de orden 1 y oscila con amplitud lentamente decreciente como $1/\sqrt{x}$.
+
+# Ejercicio 12
+
+**No lineal con exponencial**
+
+\begin{equation}
+y'' + y e^y = \sin(t),\quad y(0) = 0,\ y'(0) = 1
+\end{equation}
+
+$$y'=v,\qquad v'=\sin(t)-y\,e^{y}.$$
+
+```{python}
+def f12(t, U):
+    y, v = U
+    return [v, np.sin(t) - y*np.exp(y)]
+
+resolver_y_graficar(f12, 0, 10, [0, 1], ['y(t)', "y'(t)"],
+                    titulo='No lineal con exponencial');
+```
+
+# Ejercicio 13
+
+**Cuerda con fuerza externa**
+
+\begin{equation}
+y'' = -\pi^2 y + \cos(2\pi t),\quad y(0) = 1,\ y'(0) = 0
+\end{equation}
+
+$$y'=v,\qquad v'=-\pi^{2}y+\cos(2\pi t).$$
+
+```{python}
+def f13(t, U):
+    y, v = U
+    return [v, -np.pi**2*y + np.cos(2*np.pi*t)]
+
+resolver_y_graficar(f13, 0, 10, [1, 0], ['y(t)', "y'(t)"],
+                    titulo='Cuerda con fuerza externa');
+```
+
+La frecuencia natural ($\pi$) y la del forzante ($2\pi$) no resuenan, por lo que la
+solución es la superposición de dos oscilaciones a frecuencias distintas (batido).
+
+# Ejercicio 14
+
+**EDO homogénea de tercer orden**
+
+\begin{equation}
+y''' - 3y'' + 3y' - y = 0,\quad y(0) = 1,\ y'(0) = 0,\ y''(0) = 1
+\end{equation}
+
+Con $u_1=y,\;u_2=y',\;u_3=y''$:
+$$u_1'=u_2,\qquad u_2'=u_3,\qquad u_3'=u_1-3u_2+3u_3.$$
+
+```{python}
+def f14(t, U):
+    u1, u2, u3 = U
+    return [u2, u3, u1 - 3*u2 + 3*u3]
+
+resolver_y_graficar(f14, 0, 5, [1, 0, 1], ['y(t)', "y'(t)", "y''(t)"],
+                    titulo='EDO homogénea de tercer orden');
+```
+
+La ecuación característica es $(\lambda-1)^{3}=0$, así que la solución crece como
+$P(t)\,e^{t}$ con $P$ un polinomio de grado a lo sumo 2.
+
+# Ejercicio 15
+
+**EDO de tercer orden con término no lineal**
+
+\begin{equation}
+y''' + y^2 = 0,\quad y(0) = 1,\ y'(0) = 0,\ y''(0) = 0
+\end{equation}
+
+$$u_1'=u_2,\qquad u_2'=u_3,\qquad u_3'=-u_1^{2}.$$
+
+```{python}
+def f15(t, U):
+    u1, u2, u3 = U
+    return [u2, u3, -u1**2]
+
+resolver_y_graficar(f15, 0, 5, [1, 0, 0], ['y(t)', "y'(t)", "y''(t)"],
+                    titulo='Tercer orden con término no lineal');
+```
+
+# Ejercicio 16
+
+**Oscilador cúbico forzado**
+
+\begin{equation}
+y''' + y'' + y^3 = \cos(t),\quad y(0) = 0,\ y'(0) = 1,\ y''(0) = 0
+\end{equation}
+
+$$u_1'=u_2,\qquad u_2'=u_3,\qquad u_3'=\cos(t)-u_3-u_1^{3}.$$
+
+```{python}
+def f16(t, U):
+    u1, u2, u3 = U
+    return [u2, u3, np.cos(t) - u3 - u1**3]
+
+resolver_y_graficar(f16, 0, 15, [0, 1, 0], ['y(t)', "y'(t)", "y''(t)"],
+                    titulo='Oscilador cúbico forzado');
+```
+
+
+# Ejercicio 17
+
+**Ecuación tipo dispersión (Korteweg-de Vries simplificada)**
+
+\begin{equation}
+y''' - 6yy' = 0,\quad y(0) = 2,\ y'(0) = 0,\ y''(0) = -1
+\end{equation}
+
+$$u_1'=u_2,\qquad u_2'=u_3,\qquad u_3'=6\,u_1 u_2.$$
+
+```{python}
+def f17(t, U):
+    u1, u2, u3 = U
+    return [u2, u3, 6*u1*u2]
+
+resolver_y_graficar(f17, 0, 3, [2, 0, -1], ['y(t)', "y'(t)", "y''(t)"],
+                    titulo='Tipo KdV simplificada');
+```
+
+# Ejercicio 18
+
+**Modelo no lineal de conducción**
+
+\begin{equation}
+y''' = -y y'' + y',\quad y(0) = 1,\ y'(0) = 0,\ y''(0) = -1
+\end{equation}
+
+$$u_1'=u_2,\qquad u_2'=u_3,\qquad u_3'=-u_1 u_3+u_2.$$
+
+```{python}
+def f18(t, U):
+    u1, u2, u3 = U
+    return [u2, u3, -u1*u3 + u2]
+
+resolver_y_graficar(f18, 0, 10, [1, 0, -1], ['y(t)', "y'(t)", "y''(t)"],
+                    titulo='No lineal de conducción');
+```
+
+# Ejercicio 19
+
+Una persona abre una cuenta bancaria con un saldo inicial de $2000$ dólares. Sea $b(t)$ el saldo en la cuenta en el tiempo t. Así, $b(0) = 2000$. El banco paga intereses a una tasa continua del $5\%$ anual. La persona realiza depósitos en la cuenta a una tasa continua de $s(t)$ dólares por año. Supogamos que $s(0) = 500$ y que $s(t)$ está aumentando a una tasa continua del $4\%$ anual (la persona puede ahorrar más conforme aumenta su ingreso con el tiempen). Brinda el sistema de ecuaciones diferenciales ordinarias y gráfica la solución $b(t)$ y $s(t)$.
+
+El saldo crece por dos vías: los intereses ($5\%$ anual sobre $b$) y los depósitos
+$s(t)$. La tasa de depósito a su vez crece al $4\%$ anual. El sistema es
+$$\frac{db}{dt}=0.05\,b+s,\qquad \frac{ds}{dt}=0.04\,s,$$
+con $b(0)=2000$ y $s(0)=500$.
+
+```{python}
+def f19(t, U):
+    b, s = U
+    return [0.05*b + s, 0.04*s]
+
+resolver_y_graficar(f19, 0, 30, [2000, 500], ['b(t) saldo', 's(t) depósitos'],
+                    titulo='Cuenta bancaria con depósitos crecientes',
+                    ylabel='Dólares');
+```
+
+Tras 30 años el saldo crece exponencialmente porque los intereses se reinvierten y los
+depósitos también aumentan; el saldo final supera con claridad lo que se habría
+obtenido sin depósitos.
+
+# Ejercicio 20
+
+Aproxima la solución del siguiente sistema de ecuaciones diferenciales ordinarias
+
+\begin{eqnarray}
+x'(t) & = -6 x - 3 y\\
+y'(t) & = -15 x + 6y
+\end{eqnarray}
+
+donde $x(0)= 3$ y $y(0)=2$. Grafica cada una de las funciones y la trayectoria.
+
+La matriz del sistema tiene traza $0$ y determinante $-81$, así que sus valores
+propios son $\pm 9$: el origen es un **punto silla** y la solución crece
+exponencialmente en una dirección, por lo que se usa un intervalo corto.
+
+```{python}
+def f20(t, U):
+    x, y = U
+    return [-6*x - 3*y, -15*x + 6*y]
+
+resolver_funciones_y_trayectoria(f20, 0, 0.6, [3, 2], ['x(t)', 'y(t)'],
+                                 titulo='(Ej. 20)');
+```
+
+# Ejercicio 21
+
+Considera la interacción de dos especies de animales en un hábitat. Considerando que las poblaciones $x(t)$ y $y(t)$ pueden ser modeladas por medio de las ecuaciones
+
+\begin{eqnarray}
+x'(t) & = 1.4 x - y\\
+y'(t) & = -1.25 x + 3.4y
+\end{eqnarray}
+
+donde $x(0)=7$ y $y(0)=3$. Grafica cada una de las funciones que brindan la población de cada especie al tiempo $t$.
+
+Los valores propios son $0.9$ y $3.9$ (ambos positivos), por lo que ambas
+poblaciones crecen exponencialmente.
+
+```{python}
+def f21(t, U):
+    x, y = U
+    return [1.4*x - y, -1.25*x + 3.4*y]
+
+resolver_y_graficar(f21, 0, 3, [7, 3], ['x(t)', 'y(t)'],
+                    titulo='Interacción de dos especies');
+```
+
+# Ejercicio 22
+
+Aproxima la solución del siguiente sistema de ecuaciones diferenciales ordinarias,
+
+\begin{eqnarray}
+y'_1(t) & = -6.2 +1.1 y_1 - 0.8 y_2\\
+y'_2(t) & = -13.8 +2.1 y_1 -1.2 y_2
+\end{eqnarray}
+
+con los valores iniciales $y_1(0)=11$, $y_2(0)=4$. Grafica cada una de las funciones y la trayectoria.
+
+Este sistema **no homogéneo** tiene un punto fijo en $(y_1,y_2)=(10,6)$ que es un
+**foco estable** (valores propios complejos con parte real negativa), por lo que las
+soluciones espiralan hacia él.
+
+```{python}
+def f22(t, U):
+    y1, y2 = U
+    return [-6.2 + 1.1*y1 - 0.8*y2, -13.8 + 2.1*y1 - 1.2*y2]
+
+resolver_funciones_y_trayectoria(f22, 0, 80, [11, 4], ['y1(t)', 'y2(t)'],
+                                 titulo='(Ej. 22)');
+```
+
+<br>
+
+Para cada uno de los sistemas de ecuaciones diferenciales ordinarias no lineales con valor inicial grafica las funciones y las respectivas trayectorias.
+
+# Ejercicio 23
+
+**Sistema logístico con depredación**
+
+\begin{equation}
+\begin{cases}
+\frac{dx}{dt} = x(1 - x) - xy \\
+\frac{dy}{dt} = -y + xy \\
+x(0) = 0.9,\quad y(0) = 0.1
+\end{cases}
+\end{equation}
+
+```{python}
+def f23(t, U):
+    x, y = U
+    return [x*(1-x) - x*y, -y + x*y]
+
+resolver_funciones_y_trayectoria(f23, 0, 50, [0.9, 0.1], ['x(t) presa', 'y(t) depredador'],
+                                 titulo='Logístico con depredación');
+```
+
+El sistema combina logística con interacción presa-depredador; la trayectoria
+espirala hacia el punto fijo no trivial $(1,0)$ o $(1,?)$ según los parámetros.
+
+
+# Ejercicio 24
+
+**Oscilador de Van der Pol**
+
+\begin{equation}
+\begin{cases}
+\frac{dx}{dt} = y \\
+\frac{dy}{dt} = \mu (1 - x^2)y - x \\
+x(0) = 2,\quad y(0) = 0,\quad \mu = 3
+\end{cases}
+\end{equation}
+
+A continuación se muestra la aproximación de la solución del sistema de ecuaciones diferenciales ordinarias de primer orden y las gráficas de las funciones $x(t)$ y $y(t)$. 
+
+```{python}
+#| code-fold: true
+#| fig-align: "center"
+
+def f(t, X, mu):
+  x, y = X
+  return[y, mu*(1-x**2)*y-x]
+
+
+mu = 3
+t0 = 0
+tf = 20
+s0 = [2, 0]
+t_values = np.linspace(t0, tf, 5000)
+
+edo_sol = integrate.solve_ivp(f, [t0, tf], s0, t_eval = t_values, args = (mu,))
+
+plt.figure(figsize=(9, 5))
+plt.plot(edo_sol.t, edo_sol.y[0], color='tab:blue', lw=2, label = 'x(t)')
+plt.plot(edo_sol.t, edo_sol.y[1], color='tab:red',  lw=2, label = 'y(t)')
+plt.xlabel('t')
+plt.ylabel('x/y')
+plt.legend()
+plt.grid(True, alpha=0.4)
+plt.show()
+
+```
+
+
+En este caso es posible observar que el sistema de ecuaciones diferenciales ordinarias de primer orden tiene un comportamiento oscilatorio, es decir, las funciones $x(t)$ y $y(t)$ oscilan con el tiempo. Este tipo de comportamiento es característico del oscilador de Van der Pol, donde la no linealidad introducida por el término $\mu (1 - x^2)y$ genera una dinámica compleja que puede incluir oscilaciones limitadas o incluso caos dependiendo del valor de $\mu$. Para observar cómo varía el comportamiento del sistema con diferentes valores de $\mu$, se pueden graficar las trayectorias para varios valores de $\mu$ y comparar los resultados. Estas trayectorias se denominan órbitas del oscilador, y pueden mostrar cómo el sistema evoluciona en el espacio de fases para diferentes condiciones iniciales y parámetros. A continuación se muestra la gráfica de las órbitas del oscilador de Van der Pol para varios valores de $\mu$.
+
+**Órbitas del oscilador**
+
+```{python}
+#| code-fold: true
+#| fig-align: "center"
+
+mu_s = [3, 5, 10, 15, 20]
+
+plt.figure(figsize=(9, 5))
+cmap = plt.get_cmap('viridis')
+for k, mu in enumerate(mu_s):
+  edo_sol = integrate.solve_ivp(f, [t0, tf], s0, t_eval = t_values, args = (mu,))
+  plt.plot(edo_sol.y[0], edo_sol.y[1],
+           color=cmap(k/(len(mu_s)-1)), lw=1.5,
+           label = 'mu = ' + str(mu))
+plt.xlabel('x')
+plt.ylabel('y')
+plt.legend()
+plt.grid(True, alpha=0.4)
+plt.show()
+
+```
+
+
+# Ejercicio 25
+
+**Sistema de Lotka-Volterra**
+
+\begin{equation}
+\begin{cases}
+\frac{dx}{dt} = \alpha x - \beta xy \\
+\frac{dy}{dt} = \delta xy - \gamma y \\
+x(0) = 10,\quad y(0) = 5,\quad \alpha = 1.5,\ \beta = 1,\ \delta = 1,\ \gamma = 3
+\end{cases}
+\end{equation}
+
+```{python}
+def f25(t, U, a, b, d, g):
+    x, y = U
+    return [a*x - b*x*y, d*x*y - g*y]
+
+resolver_funciones_y_trayectoria(f25, 0, 15, [10, 5], ['x(t) presa', 'y(t) depredador'],
+                                 titulo='Lotka–Volterra',
+                                 args=(1.5, 1.0, 1.0, 3.0));
+```
+
+El modelo Lotka–Volterra exhibe **oscilaciones cerradas** en el espacio de fases:
+las poblaciones de presa y depredador oscilan de forma periódica desfasada, sin
+amortiguarse (el sistema es conservativo).
+
+
+# Ejercicio 26
+
+**Interacción no lineal seno-coseno**
+
+\begin{equation}
+\begin{cases}
+\frac{dx}{dt} = \sin(y) - x^3 \\
+\frac{dy}{dt} = \cos(x) - y^2 \\
+x(0) = 1,\quad y(0) = 0
+\end{cases}
+\end{equation}
+
+```{python}
+def f26(t, U):
+    x, y = U
+    return [np.sin(y) - x**3, np.cos(x) - y**2]
+
+resolver_funciones_y_trayectoria(f26, 0, 20, [1, 0], ['x(t)', 'y(t)'],
+                                 titulo='Interacción seno-coseno');
+```
+
+
+# Ejercicio 27
+
+**FitzHugh-Nagumo (modelo de neurona)**
+
+\begin{equation}
+\begin{cases}
+\frac{dv}{dt} = v - \frac{v^3}{3} - w + I \\
+\frac{dw}{dt} = 0.08(v + 0.7 - 0.8w) \\
+v(0) = -1,\quad w(0) = 1,\quad I = 0.5
+\end{cases}
+\end{equation}
+
+```{python}
+def f27(t, U, I):
+    v, w = U
+    return [v - v**3/3 - w + I, 0.08*(v + 0.7 - 0.8*w)]
+
+resolver_funciones_y_trayectoria(f27, 0, 200, [-1, 1], ['v(t) potencial', 'w(t) recuperación'],
+                                 titulo='FitzHugh–Nagumo (neurona)',
+                                 args=(0.5,), n_pts=4000);
+```
+
+El modelo reproduce el **disparo periódico de potenciales de acción** de una neurona:
+$v$ se eleva bruscamente y vuelve a un valor de reposo, mientras $w$ es la variable lenta
+de recuperación. En el espacio de fases la trayectoria converge a un ciclo límite.
+
+
+# Ejercicio 28
+
+**Sistema no autónomo**
+
+\begin{equation}
+\begin{cases}
+\frac{dx}{dt} = x \sin(t) + y^2 \\
+\frac{dy}{dt} = -y \cos(t) + x \\
+x(0) = 1,\quad y(0) = -1
+\end{cases}
+\end{equation}
+
+```{python}
+def f28(t, U):
+    x, y = U
+    return [x*np.sin(t) + y**2, -y*np.cos(t) + x]
+
+resolver_funciones_y_trayectoria(f28, 0, 5, [1, -1], ['x(t)', 'y(t)'],
+                                 titulo='Sistema no autónomo');
+```
+
+
+# Ejercicio 29
+
+**Modelo epidemiológico SIR (en este caso no graficar la trayectoria)**
+
+\begin{equation}
+\begin{cases}
+\frac{dS}{dt} = -\beta S I \\
+\frac{dI}{dt} = \beta S I - \gamma I \\
+\frac{dR}{dt} = \gamma I \\
+S(0) = 0.99,\quad I(0) = 0.01,\quad R(0) = 0,\quad \beta = 0.5,\ \gamma = 0.1
+\end{cases}
+\end{equation}
+
+# Profe, entre el ejercicio numero 29 al 31, tuve problemas con la definicion de "args", así que para ello, tuve que usa IA para resolverlo, espero que no haya problema con eso, ya que el código es correcto y se ajusta a lo que se pide en el ejercicio.
+
+```{python}
+def f29(t, U, beta, gamma):
+    S, I, R = U
+    return [-beta*S*I, beta*S*I - gamma*I, gamma*I]
+
+resolver_y_graficar(f29, 0, 100, [0.99, 0.01, 0], 
+                    ['S(t) susceptibles', 'I(t) infectados', 'R(t) recuperados'],
+                    titulo='Modelo SIR',
+                    args=(0.5, 0.1), n_pts=2000);
+```
+
+La curva de infectados $I(t)$ alcanza un máximo (pico de la epidemia) y luego decae,
+mientras los susceptibles disminuyen monótonamente y los recuperados aumentan. El
+número básico de reproducción es $R_0=\beta/\gamma=5$, lo que explica que casi toda
+la población acabe infectándose.
+
+# Ejercicio 30
+
+**Crecimiento logístico cruzado**
+
+\begin{equation}
+\begin{cases}
+\frac{dx}{dt} = x(1 - x - 0.5y) \\
+\frac{dy}{dt} = y(1 - y - 0.3x) \\
+x(0) = 0.5,\quad y(0) = 0.2
+\end{cases}
+\end{equation}
+
+```{python}
+def f30(t, U):
+    x, y = U
+    return [x*(1 - x - 0.5*y), y*(1 - y - 0.3*x)]
+
+resolver_funciones_y_trayectoria(f30, 0, 30, [0.5, 0.2], ['x(t)', 'y(t)'],
+                                 titulo='Logístico cruzado (competencia)');
+```
+
+Modelo de competencia entre dos especies: ambas crecen logísticamente pero también
+inhiben el crecimiento de la otra. El sistema tiende a un equilibrio de
+**coexistencia** porque los coeficientes cruzados $0.5$ y $0.3$ son menores que $1$.
+
+# Ejercicio 31
+
+**Movimiento en campo no lineal**
+
+\begin{equation}
+\begin{cases}
+\frac{dx}{dt} = y \\
+\frac{dy}{dt} = -\sin(x) - 0.5 y \\
+x(0) = \pi/2,\quad y(0) = 0
+\end{cases}
+\end{equation}
+
+```{python}
+def f31(t, U):
+    x, y = U
+    return [y, -np.sin(x) - 0.5*y]
+
+resolver_funciones_y_trayectoria(f31, 0, 25, [np.pi/2, 0], ['x(t) posición', 'y(t) velocidad'],
+                                 titulo='Péndulo amortiguado');
+```
+
+Equivale a un **péndulo amortiguado**: la trayectoria espirala hacia el equilibrio
+estable $(x,y)=(0,0)$ (péndulo en reposo en su posición más baja).
+
+# Ejercicio 32
+
+**Sistema no lineal acoplado**
+
+\begin{equation}
+\begin{cases}
+\frac{dx}{dt} = x(1 - x) - xy^2 \\
+\frac{dy}{dt} = y(1 - y) - x^2y \\
+x(0) = 0.8,\quad y(0) = 0.6
+\end{cases}
+\end{equation}
+
+```{python}
+def f32(t, U):
+    x, y = U
+    return [x*(1-x) - x*y**2, y*(1-y) - x**2*y]
+
+resolver_funciones_y_trayectoria(f32, 0, 30, [0.8, 0.6], ['x(t)', 'y(t)'],
+                                 titulo='No lineal acoplado');
+```
+
+Ambas variables siguen una dinámica logística con un acoplamiento cuadrático que
+deprime cada una a la otra; el sistema tiende a un equilibrio interior estable.
